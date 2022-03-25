@@ -29,7 +29,7 @@
     overflow: auto;
 }
 
-#succeeded-tasks-container .card-block {
+#succeeded-tasks-container .card-body {
     display: none;
 }
 
