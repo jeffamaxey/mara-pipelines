@@ -25,10 +25,7 @@ class Node():
 
     def parents(self):
         """Returns all parents of a node from top to bottom"""
-        if self.parent:
-            return self.parent.parents() + [self]
-        else:
-            return [self]
+        return self.parent.parents() + [self] if self.parent else [self]
 
     def path(self) -> [str]:
         """Returns a list of ids that identify the node across all pipelines, from top to bottom"""
@@ -101,10 +98,7 @@ class Task(Node):
             self.add_command(command)
 
     def run(self):
-        for command in self.commands:
-            if not command.run():
-                return False
-        return True
+        return all(command.run() for command in self.commands)
 
 
 class ParallelTask(Node):
@@ -242,12 +236,12 @@ class Pipeline(Node):
 
     def add_dependency(self, upstream: typing.Union[Node, str], downstream: typing.Union[Node, str]):
         if isinstance(upstream, str):
-            if not upstream in self.nodes:
+            if upstream not in self.nodes:
                 raise KeyError(f'Node "{upstream}" not found in pipeline "{self.id}"')
             upstream = self.nodes[upstream]
 
         if isinstance(downstream, str):
-            if not downstream in self.nodes:
+            if downstream not in self.nodes:
                 raise KeyError(f'Node "{downstream}" not found in pipeline "{self.id}"')
             downstream = self.nodes[downstream]
 
@@ -297,11 +291,10 @@ def find_node(path: [str]) -> (Node, bool):
     def _find_node(node: Node, path) -> Node:
         if len(path) == 0:
             return node, True
+        if isinstance(node, Pipeline) and path[0] in node.nodes:
+            return _find_node(node.nodes[path[0]], path[1::])
         else:
-            if isinstance(node, Pipeline) and path[0] in node.nodes:
-                return _find_node(node.nodes[path[0]], path[1::])
-            else:
-                return node, False
+            return node, False
 
     return _find_node(config.root_pipeline(), path)
 

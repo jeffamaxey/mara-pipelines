@@ -30,7 +30,7 @@ class RunFunction(pipelines.Command):
         self.file_dependencies = file_dependencies or []
 
     def run(self) -> bool:
-        dependency_type = 'RunFunction ' + self.function.__name__
+        dependency_type = f'RunFunction {self.function.__name__}'
         if self.file_dependencies:
             assert (self.parent)
             pipeline_base_path = self.parent.parent.base_path()
@@ -79,7 +79,7 @@ class ExecutePython(pipelines.Command):
         return self._args() if callable(self._args) else self._args
 
     def run(self) -> bool:
-        dependency_type = 'ExecutePython ' + self.file_name
+        dependency_type = f'ExecutePython {self.file_name}'
         if self.file_dependencies:
             assert (self.parent)
             pipeline_base_path = self.parent.parent.base_path()
