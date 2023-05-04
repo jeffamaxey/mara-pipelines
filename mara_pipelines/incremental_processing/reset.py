@@ -12,7 +12,8 @@ def reset_incremental_processing(node_path: [str]):
 
     """
     with mara_db.postgresql.postgres_cursor_context('mara') as cursor:
-        cursor.execute(f'''
+        cursor.execute(
+            "
 SELECT *
 FROM
   (SELECT node_path, 'processed files', count(*)
@@ -32,13 +33,18 @@ FROM
    GROUP BY node_path
 
   ) t
-WHERE node_path [1:{'%s'}] = {'%s'}
+WHERE node_path [1:%s] = %s
 
-ORDER BY 1, 2''', (len(node_path), node_path))
+ORDER BY 1, 2",
+            (len(node_path), node_path),
+        )
 
         for path, type, n in cursor.fetchall():
             print(f'{"/".join(path)}: {n} {type}')
 
         for table in ['data_integration_processed_file', 'data_integration_file_dependency',
                       'data_integration_incremental_copy_status']:
-            cursor.execute(f'''DELETE FROM {table} WHERE node_path [1:{'%s'}] = {'%s'}''', (len(node_path), node_path))
+            cursor.execute(
+                f'''DELETE FROM {table} WHERE node_path [1:%s] = %s''',
+                (len(node_path), node_path),
+            )

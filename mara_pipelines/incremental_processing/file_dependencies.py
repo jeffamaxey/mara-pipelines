@@ -33,12 +33,20 @@ def update(node_path: [str], dependency_type: str, pipeline_base_path: str, file
         file_dependencies: A list of file names relative to pipeline_base_path
     """
     with mara_db.postgresql.postgres_cursor_context('mara') as cursor:
-        cursor.execute(f"""
+        cursor.execute(
+            '
 INSERT INTO data_integration_file_dependency (node_path, dependency_type, hash, timestamp)
-VALUES ({'%s,%s,%s,%s'})
+VALUES (%s,%s,%s,%s)
 ON CONFLICT (node_path, dependency_type)
 DO UPDATE SET timestamp = EXCLUDED.timestamp, hash = EXCLUDED.hash
-    """, (node_path, dependency_type, hash(pipeline_base_path, file_dependencies), datetime.datetime.utcnow()))
+    ',
+            (
+                node_path,
+                dependency_type,
+                hash(pipeline_base_path, file_dependencies),
+                datetime.datetime.utcnow(),
+            ),
+        )
 
 def delete(node_path: [str], dependency_type: str):
     """
@@ -49,10 +57,13 @@ def delete(node_path: [str], dependency_type: str):
         dependency_type: An arbitrary string that allows to distinguish between multiple dependencies of a node
     """
     with mara_db.postgresql.postgres_cursor_context('mara') as cursor:
-        cursor.execute(f"""
+        cursor.execute(
+            '
 DELETE FROM data_integration_file_dependency
-WHERE node_path = {'%s'} AND dependency_type = {'%s'}
-    """, (node_path, dependency_type))
+WHERE node_path = %s AND dependency_type = %s
+    ',
+            (node_path, dependency_type),
+        )
 
 
 def is_modified(node_path: [str], dependency_type: str, pipeline_base_path: str, file_dependencies: [str]):
@@ -74,7 +85,7 @@ SELECT TRUE
 FROM data_integration_file_dependency
 WHERE node_path=%s AND dependency_type=%s AND hash=%s """,
                        (node_path, dependency_type, hash(pipeline_base_path, file_dependencies)))
-        return False if cursor.fetchone() else True
+        return not cursor.fetchone()
 
 
 def hash(pipeline_base_path: pathlib.Path, file_dependencies: [str]) -> str:
@@ -87,7 +98,7 @@ def hash(pipeline_base_path: pathlib.Path, file_dependencies: [str]) -> str:
 
     Returns: a combined content hash
     """
-    hash = str(config.first_date()) + ' ' + str(config.last_date())
+    hash = f'{str(config.first_date())} {str(config.last_date())}'
     for file_dependency in file_dependencies:
-        hash += ' ' + hashlib.md5((pipeline_base_path / pathlib.Path(file_dependency)).read_text().encode()).hexdigest()
+        hash += f' {hashlib.md5((pipeline_base_path / pathlib.Path(file_dependency)).read_text().encode()).hexdigest()}'
     return hash

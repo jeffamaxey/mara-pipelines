@@ -87,7 +87,7 @@ def format_duration(duration: float) -> str:
         >>>> print(format_duration(4000))
         1:06h
     """
-    if duration in [None, '']:
+    if duration in {None, ''}:
         return ''
 
     hours = math.floor(duration / 3600)

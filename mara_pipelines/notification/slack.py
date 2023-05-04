@@ -17,10 +17,15 @@ class Slack(ChatNotifier):
         self.token = token
 
     def send_run_started_interactively_message(self, event: pipeline_events.RunStarted):
-        text = (':hatching_chick: *' + event.user
-                + '* manually triggered run of ' +
-                ('pipeline <' + config.base_url() + '/' + '/'.join(event.node_path) + '|'
-                 + '/'.join(event.node_path) + ' >' if not event.is_root_pipeline else 'root pipeline'))
+        text = f':hatching_chick: *{event.user}* manually triggered run of ' + (
+            'root pipeline'
+            if event.is_root_pipeline
+            else f'pipeline <{config.base_url()}/'
+            + '/'.join(event.node_path)
+            + '|'
+            + '/'.join(event.node_path)
+            + ' >'
+        )
 
         if event.node_ids:
             text += ', nodes ' + ', '.join([f'`{node}`' for node in event.node_ids])
@@ -56,7 +61,9 @@ class Slack(ChatNotifier):
         self._send_message({'text': text, 'attachments': attachments})
 
     def _send_message(self, message):
-        response = requests.post(url='https://hooks.slack.com/services/' + self.token, json=message)
+        response = requests.post(
+            url=f'https://hooks.slack.com/services/{self.token}', json=message
+        )
         if response.status_code != 200:
             raise ValueError(f'Could not send message. Status {response.status_code}, response "{response.text}"')
 
@@ -66,7 +73,7 @@ class Slack(ChatNotifier):
             if event.format == pipeline_events.Output.Format.VERBATIM:
                 if last_format == event.format:
                     # append new verbatim line to the already initialized verbatim output
-                    output = output[0:-3] + f'\n{event.message}```'
+                    output = f'{output[:-3]}\n{event.message}```'
                 else:
                     output += f'```{event.message}```'
             elif event.format == pipeline_events.Output.Format.ITALICS:

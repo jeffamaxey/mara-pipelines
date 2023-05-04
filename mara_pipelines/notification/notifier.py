@@ -28,7 +28,7 @@ class ChatNotifier(events.EventHandler, abc.ABC):
             if not self.node_output:
                 self.node_output = {}
 
-            if not key in self.node_output:
+            if key not in self.node_output:
                 self.node_output[key] = {True: [], False: []}
 
             self.node_output[key][event.is_error].append(event)

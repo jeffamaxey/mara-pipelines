@@ -77,11 +77,15 @@ def sed_command(replace: {str: str}) -> str:
     def quote(s):
         return str(s).replace('/', '\/').replace('"', '\\\"').replace('\n', '\\\\\n')
 
-    return 'sed "' + \
-           ';'.join(
-               ['s/' + quote(search) + '/' + quote(_replace) + '/g' for search, _replace in
-                replace.items()]) \
-           + '"'
+    return (
+        'sed "'
+        + ';'.join(
+            [
+                f's/{quote(search)}/{quote(_replace)}/g'
+                for search, _replace in replace.items()
+            ]
+        )
+    ) + '"'
 
 
 if __name__ == "__main__":

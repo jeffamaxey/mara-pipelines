@@ -49,25 +49,36 @@ class _SQLCommand(pipelines.Command):
 
     def shell_command(self):
         if self.sql_file_name:
-            command = 'cat ' + shlex.quote(str(self.sql_file_path().absolute())) + ' \\\n'
+            command = f'cat {shlex.quote(str(self.sql_file_path().absolute()))}' + ' \\\n'
         else:
             command = f'echo {shlex.quote(self.sql_statement)} \\\n'
 
         if self.replace:
-            command += '  | ' + shell.sed_command(_expand_pattern_substitution(self.replace)) + ' \\\n'
+            command += (
+                f'  | {shell.sed_command(_expand_pattern_substitution(self.replace))}'
+                + ' \\\n'
+            )
         return command
 
     def html_doc_items(self, db_alias: str):
         sql = self.sql_statement or \
-              (self.sql_file_path().read_text().strip('\n') if self.sql_file_path().exists() else '-- file not found')
+                  (self.sql_file_path().read_text().strip('\n') if self.sql_file_path().exists() else '-- file not found')
         doc = []
         if self.sql_statement:
             doc.append(
                 ('sql statement', html.highlight_syntax(self.sql_statement, _sql_syntax_higlighting_lexter(db_alias))))
         else:
-            doc.append(('sql file name', _.i[self.sql_file_name]))
-            doc.append((_.i['sql file content'], html.highlight_syntax(sql, _sql_syntax_higlighting_lexter(db_alias))))
-
+            doc.extend(
+                (
+                    ('sql file name', _.i[self.sql_file_name]),
+                    (
+                        _.i['sql file content'],
+                        html.highlight_syntax(
+                            sql, _sql_syntax_higlighting_lexter(db_alias)
+                        ),
+                    ),
+                )
+            )
         doc.append(('replace', html.highlight_syntax(
             json.dumps(_expand_pattern_substitution(self.replace), indent=2), 'json')))
 

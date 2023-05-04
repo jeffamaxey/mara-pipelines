@@ -31,12 +31,11 @@ def run_page(path: str, with_upstreams: bool, ids: str):
     # a list of nodes to run selectively in the pipeline
     nodes = []
     for id in (ids.split('/') if ids else []):
-        node = pipeline.nodes.get(id)
-        if not node:
-            flask.abort(404, f'Node "{id}" not found in pipeline "{path}"')
-        else:
+        if node := pipeline.nodes.get(id):
             nodes.append(node)
 
+        else:
+            flask.abort(404, f'Node "{id}" not found in pipeline "{path}"')
     stream_url = flask.url_for('mara_pipelines.do_run', path=path, with_upstreams=with_upstreams, ids=ids)
 
     title = ['Run ', 'with upstreams ' if with_upstreams else '',
@@ -106,6 +105,6 @@ def do_run(path: str, with_upstreams: bool, ids: str):
 
     def process_events():
         for event in execution.run_pipeline(pipeline, nodes, with_upstreams):
-            yield f'event: {event.__class__.__name__}\ndata: ' + event.to_json() + '\n\n'
+            yield f'event: {event.__class__.__name__}\ndata: {event.to_json()}' + '\n\n'
 
     return flask.Response(process_events(), mimetype="text/event-stream")

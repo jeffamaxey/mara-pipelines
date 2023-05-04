@@ -111,8 +111,13 @@ def dependency_graph(nodes: {str: pipelines.Node},
 @dependency_graph.register(pipelines.Pipeline)
 def __(pipeline: pipelines.Pipeline):
     """Draw all nodes of a pipeline excluding initial and final node"""
-    return dependency_graph({id: node for id, node in pipeline.nodes.items()
-                             if node != pipeline.initial_node and node != pipeline.final_node})
+    return dependency_graph(
+        {
+            id: node
+            for id, node in pipeline.nodes.items()
+            if node not in [pipeline.initial_node, pipeline.final_node]
+        }
+    )
 
 
 @dependency_graph.register(pipelines.Node)

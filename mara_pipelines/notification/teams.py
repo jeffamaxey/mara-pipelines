@@ -16,11 +16,24 @@ class Teams(ChatNotifier):
         self.token = token
 
     def send_run_started_interactively_message(self, event: pipeline_events.RunStarted):
-        text = ('<font size="4">&#x1F423;</font> ' + event.user
-                + ' manually triggered run of ' +
-                ('pipeline [_' + '/'.join(event.node_path).replace("_", "\\_") + '_]' +
-                 '(' + (config.base_url() + '/' + '/'.join(event.node_path) + ')'
-                        if not event.is_root_pipeline else 'root pipeline')))
+        text = (
+            f'<font size="4">&#x1F423;</font> {event.user} manually triggered run of '
+            + (
+                (
+                    'pipeline [_'
+                    + '/'.join(event.node_path).replace("_", "\\_")
+                    + '_]'
+                    + '('
+                    + (
+                        'root pipeline'
+                        if event.is_root_pipeline
+                        else f'{config.base_url()}/'
+                        + '/'.join(event.node_path)
+                        + ')'
+                    )
+                )
+            )
+        )
         if event.node_ids:
             text += ', nodes ' + ', '.join([f'`{node}`' for node in event.node_ids])
         self._send_message({'text': text})
@@ -33,7 +46,7 @@ class Teams(ChatNotifier):
 
     def send_task_failed_message(self, event: pipeline_events.NodeFinished):
         text = '<font size="4">&#x1F424;</font> Ooops, a hiccup in [_' + '/'.join(event.node_path).replace("_", "\\_") \
-               + '_](' + config.base_url() + '/' + '/'.join(event.node_path) + ')'
+                   + '_](' + config.base_url() + '/' + '/'.join(event.node_path) + ')'
 
         key = tuple(event.node_path)
 
@@ -46,12 +59,14 @@ class Teams(ChatNotifier):
         # Shortening message to 2000 because Teams does not display message greater than 28 KB.
         # https://docs.microsoft.com/en-us/microsoftteams/limits-specifications-teams#chat
         if len(text) > 2000:
-            text = text[:2000] + '</pre>'
+            text = f'{text[:2000]}</pre>'
 
         self._send_message({'text': text})
 
     def _send_message(self, message):
-        response = requests.post(url='https://outlook.office.com/webhook/' + self.token, json=message)
+        response = requests.post(
+            url=f'https://outlook.office.com/webhook/{self.token}', json=message
+        )
 
         if response.status_code != 200:
             raise ValueError(f'Could not send message. Status {response.status_code}, response "{response.text}"')
@@ -62,7 +77,7 @@ class Teams(ChatNotifier):
             if event.format == pipeline_events.Output.Format.VERBATIM:
                 if last_format == event.format:
                     # append new verbatim line to the already initialized verbatim output
-                    output = output[0:-len('</pre>')] + f'\n{event.message}</pre>'
+                    output = output[:-len('</pre>')] + f'\n{event.message}</pre>'
                 else:
                     output += f'\n<pre>{event.message}</pre>'
             elif event.format == pipeline_events.Output.Format.ITALICS:
