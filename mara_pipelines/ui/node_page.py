@@ -80,38 +80,60 @@ def __(pipeline: pipelines.Pipeline):
 def __(task: pipelines.Task):
     if not acl.current_user_has_permission(views.acl_resource):
         return bootstrap.card(header_left='Commands', body=acl.inline_permission_denied_message())
-    else:
-        commands_card = bootstrap.card(
-            header_left='Commands',
-            fixed_header_height=True,
-            sections=[_render_command(command) for command in task.commands])
-        if task.max_retries:
-            return [bootstrap.card(header_left=f'Max retries: {task.max_retries}'), commands_card]
-        else:
-            return commands_card
+    commands_card = bootstrap.card(
+        header_left='Commands',
+        fixed_header_height=True,
+        sections=[_render_command(command) for command in task.commands])
+    return (
+        [
+            bootstrap.card(header_left=f'Max retries: {task.max_retries}'),
+            commands_card,
+        ]
+        if task.max_retries
+        else commands_card
+    )
 
 
 @node_content.register(pipelines.ParallelTask)
 def __(task: pipelines.ParallelTask):
-    if not acl.current_user_has_permission(views.acl_resource):
-        return bootstrap.card(header_left=acl.inline_permission_denied_message())
-    else:
-        return [
+    return (
+        [
             bootstrap.card(
                 header_left='Commands before',
                 fixed_header_height=True,
-                sections=[_render_command(command) for command in task.commands_before]
-            ) if task.commands_before else '',
-
-            bootstrap.card(header_left='Sub task creation',
-                           body=bootstrap.table([], [_.tr[_.td[_.div[section]], _.td(style='width:90%')[content]]
-                                                     for section, content in task.html_doc_items()])),
-
+                sections=[
+                    _render_command(command)
+                    for command in task.commands_before
+                ],
+            )
+            if task.commands_before
+            else '',
+            bootstrap.card(
+                header_left='Sub task creation',
+                body=bootstrap.table(
+                    [],
+                    [
+                        _.tr[
+                            _.td[_.div[section]],
+                            _.td(style='width:90%')[content],
+                        ]
+                        for section, content in task.html_doc_items()
+                    ],
+                ),
+            ),
             bootstrap.card(
                 header_left='Commands after',
                 fixed_header_height=True,
-                sections=[_render_command(command) for command in task.commands_after]
-            ) if task.commands_after else '']
+                sections=[
+                    _render_command(command) for command in task.commands_after
+                ],
+            )
+            if task.commands_after
+            else '',
+        ]
+        if acl.current_user_has_permission(views.acl_resource)
+        else bootstrap.card(header_left=acl.inline_permission_denied_message())
+    )
 
 
 def _render_command(command: pipelines.Command):
@@ -143,15 +165,28 @@ def action_buttons(node: pipelines.Node):
     path = node.path()
     return [
         response.ActionButton(
-            action=flask.url_for('mara_pipelines.run_page', path='/'.join(path[:-1]),
-                                 with_upstreams=True, ids=path[-1]),
-            label='Run with upstreams', icon='play',
-            title=f'Run the task and all its upstreams in the pipeline "{node.parent.id}"'),
+            action=flask.url_for(
+                'mara_pipelines.run_page',
+                path='/'.join(path[:-1]),
+                with_upstreams=True,
+                ids=path[-1],
+            ),
+            label='Run with upstreams',
+            icon='play',
+            title=f'Run the task and all its upstreams in the pipeline "{node.parent.id}"',
+        ),
         response.ActionButton(
-            action=flask.url_for('mara_pipelines.run_page', path='/'.join(path[:-1]),
-                                 with_upstreams=False, ids=path[-1]),
-            label='Run', icon='play',
-            title=f'Run only this task, without upstreams')]
+            action=flask.url_for(
+                'mara_pipelines.run_page',
+                path='/'.join(path[:-1]),
+                with_upstreams=False,
+                ids=path[-1],
+            ),
+            label='Run',
+            icon='play',
+            title='Run only this task, without upstreams',
+        ),
+    ]
 
 
 @action_buttons.register(pipelines.Pipeline)

@@ -106,10 +106,13 @@ class RunLogger(events.EventHandler):
 
         if isinstance(event, pipeline_events.RunStarted):
             with mara_db.postgresql.postgres_cursor_context('mara') as cursor:  # type: psycopg2.extensions.cursor
-                cursor.execute(f'''
+                cursor.execute(
+                    '
 INSERT INTO data_integration_run (node_path, pid, start_time)
-VALUES ({"%s, %s, %s"})
-RETURNING run_id;''', (event.node_path, event.pid, event.start_time))
+VALUES (%s, %s, %s)
+RETURNING run_id;',
+                    (event.node_path, event.pid, event.start_time),
+                )
                 self.run_id = cursor.fetchone()[0]
 
         elif isinstance(event, pipeline_events.Output):
@@ -125,20 +128,40 @@ RETURNING run_id;''', (event.node_path, event.pid, event.start_time))
 
         elif isinstance(event, pipeline_events.NodeStarted):
             with mara_db.postgresql.postgres_cursor_context('mara') as cursor:  # type: psycopg2.extensions.cursor
-                cursor.execute(f'''
+                cursor.execute(
+                    '
 INSERT INTO data_integration_node_run (run_id, node_path, start_time, is_pipeline)
-VALUES  ({"%s, %s, %s, %s"})
-RETURNING node_run_id''', (self.run_id, event.node_path, event.start_time, event.is_pipeline))
+VALUES  (%s, %s, %s, %s)
+RETURNING node_run_id',
+                    (
+                        self.run_id,
+                        event.node_path,
+                        event.start_time,
+                        event.is_pipeline,
+                    ),
+                )
 
         elif isinstance(event, system_statistics.SystemStatistics):
             try:
                 with mara_db.postgresql.postgres_cursor_context('mara') as cursor:  # type: psycopg2.extensions.cursor
-                    cursor.execute(f'''
+                    cursor.execute(
+                        '
     INSERT INTO data_integration_system_statistics (timestamp, run_id, disc_read, disc_write, net_recv, net_sent,
                                       cpu_usage, mem_usage, swap_usage, iowait)
-    VALUES ({"%s, %s, %s, %s, %s, %s, %s, %s, %s, %s"})''',
-                                   (event.timestamp, self.run_id, event.disc_read, event.disc_write, event.net_recv,
-                                    event.net_sent, event.cpu_usage, event.mem_usage, event.swap_usage, event.iowait))
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
+                        (
+                            event.timestamp,
+                            self.run_id,
+                            event.disc_read,
+                            event.disc_write,
+                            event.net_recv,
+                            event.net_sent,
+                            event.cpu_usage,
+                            event.mem_usage,
+                            event.swap_usage,
+                            event.iowait,
+                        ),
+                    )
             except Exception as e:
                 # The old version of the database table had only a PK on timestamp. If one is running multiple
                 # ETLs at the same time it could happened that two of them get inserted with same TS and it fails.
@@ -149,11 +172,19 @@ RETURNING node_run_id''', (self.run_id, event.node_path, event.start_time, event
                 print(f'Ignored problem on inserting system statistic events into the table: {e!r}', flush=True)
         elif isinstance(event, pipeline_events.NodeFinished):
             with mara_db.postgresql.postgres_cursor_context('mara') as cursor:  # type: psycopg2.extensions.cursor
-                cursor.execute(f'''
+                cursor.execute(
+                    '
 UPDATE data_integration_node_run
-SET end_time={"%s"}, succeeded={"%s"}
-WHERE run_id={"%s"} AND node_path={"%s"}
-RETURNING node_run_id''', (event.end_time, event.succeeded, self.run_id, event.node_path))
+SET end_time=%s, succeeded=%s
+WHERE run_id=%s AND node_path=%s
+RETURNING node_run_id',
+                    (
+                        event.end_time,
+                        event.succeeded,
+                        self.run_id,
+                        event.node_path,
+                    ),
+                )
                 node_run_id = cursor.fetchone()[0]
 
                 cursor.execute('''
@@ -165,10 +196,13 @@ VALUES ''' + ','.join([cursor.mogrify('(%s,%s,%s,%s,%s)', (node_run_id, output_e
 
         elif isinstance(event, pipeline_events.RunFinished):
             with mara_db.postgresql.postgres_cursor_context('mara') as cursor:  # type: psycopg2.extensions.cursor
-                cursor.execute(f'''
+                cursor.execute(
+                    '
 UPDATE data_integration_run
-SET end_time={"%s"}, succeeded={"%s"}
-WHERE run_id={"%s"}''', (event.end_time, event.succeeded, self.run_id))
+SET end_time=%s, succeeded=%s
+WHERE run_id=%s',
+                    (event.end_time, event.succeeded, self.run_id),
+                )
 
                 cursor.execute(f'''
 DELETE FROM data_integration_node_output WHERE node_run_id IN (

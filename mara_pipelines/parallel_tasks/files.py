@@ -140,7 +140,7 @@ class _ParallelRead(pipelines.ParallelTask):
                     files_per_day[date] = [file]
 
             sql_statements = []
-            for date in files_per_day.keys():
+            for date in files_per_day:
                 sql_statements.append(f'CREATE TABLE IF NOT EXISTS {self.target_table}_{date.strftime("%Y%m%d")}'
                                       + f' PARTITION OF {self.target_table} FOR VALUES IN ({date.strftime("%Y%m%d")});')
 
@@ -158,7 +158,7 @@ class _ParallelRead(pipelines.ParallelTask):
             for n, chunk in enumerate(more_itertools.chunked(files_per_day.items(), chunk_size)):
                 task = pipelines.Task(id=str(n), description='Reads a portion of the files')
                 for (day, files) in chunk:
-                    target_table = self.target_table + '_' + day.strftime("%Y%m%d")
+                    target_table = f'{self.target_table}_' + day.strftime("%Y%m%d")
                     for file in files:
                         task.add_commands(self.parallel_commands(file))
                     task.add_command(sql.ExecuteSQL(sql_statement=f'ANALYZE {target_table}'))
@@ -166,8 +166,14 @@ class _ParallelRead(pipelines.ParallelTask):
         else:
             for n, chunk in enumerate(more_itertools.chunked(files, chunk_size)):
                 sub_pipeline.add(
-                    pipelines.Task(id=str(n), description=f'Reads {len(chunk)} files',
-                                   commands=sum([self.parallel_commands(x[0]) for x in chunk], [])))
+                    pipelines.Task(
+                        id=str(n),
+                        description=f'Reads {len(chunk)} files',
+                        commands=sum(
+                            (self.parallel_commands(x[0]) for x in chunk), []
+                        ),
+                    )
+                )
 
     def parallel_commands(self, file_name: str) -> [pipelines.Command]:
         return [self.read_command(file_name)] + (

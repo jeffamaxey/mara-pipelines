@@ -26,10 +26,10 @@ def run_pipeline(pipeline: pipelines.Pipeline, nodes: {pipelines.Node} = None,
     from ..logging import logger, pipeline_events
     from .. import execution
 
-    RESET_ALL = 'reset_all'
     PATH_COLOR = 'path_color'
     ERROR_COLOR = 'error_color'
 
+    RESET_ALL = 'reset_all'
     # https://godoc.org/github.com/whitedevops/colors
     colorful = {logger.Format.STANDARD: '\033[01m',  # bold
                 logger.Format.ITALICS: '\033[02m',  # dim
@@ -38,16 +38,19 @@ def run_pipeline(pipeline: pipelines.Pipeline, nodes: {pipelines.Node} = None,
                 ERROR_COLOR: '\033[91m',  # light red
                 RESET_ALL: '\033[0m',  # reset all
                 }
-    plain = {key: '' for key in colorful.keys()}
+    plain = {key: '' for key in colorful}
 
     theme = plain if disable_colors else colorful
 
     succeeded = False
     for event in execution.run_pipeline(pipeline, nodes, with_upstreams, interactively_started=interactively_started):
         if isinstance(event, pipeline_events.Output):
-            print(f'{theme[PATH_COLOR]}{" / ".join(event.node_path)}{":" if event.node_path else ""}{theme[RESET_ALL]} '
-                  + theme[event.format] + (theme[ERROR_COLOR] if event.is_error else '')
-                  + event.message + theme[RESET_ALL])
+            print(
+                f'{theme[PATH_COLOR]}{" / ".join(event.node_path)}{":" if event.node_path else ""}{theme[RESET_ALL]} {theme[event.format]}'
+                + (theme[ERROR_COLOR] if event.is_error else '')
+                + event.message
+                + theme[RESET_ALL]
+            )
         elif isinstance(event, pipeline_events.RunFinished):
             if event.succeeded:
                 succeeded = True
@@ -80,13 +83,12 @@ def run(path, nodes, with_upstreams, disable_colors: bool = False):
     # a list of nodes to run selectively in the pipeline
     _nodes = set()
     for id in (nodes.split(',') if nodes else []):
-        node = pipeline.nodes.get(id)
-        if not node:
-            print(f'Node "{id}" not found in pipeline {path}', file=sys.stderr)
-            sys.exit(-1)
-        else:
+        if node := pipeline.nodes.get(id):
             _nodes.add(node)
 
+        else:
+            print(f'Node "{id}" not found in pipeline {path}', file=sys.stderr)
+            sys.exit(-1)
     if not run_pipeline(pipeline, _nodes, with_upstreams, interactively_started=False, disable_colors=disable_colors):
         sys.exit(-1)
 

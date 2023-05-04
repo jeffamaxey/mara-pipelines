@@ -31,7 +31,10 @@ def run_time_chart(path: str):
 
     with mara_db.postgresql.postgres_cursor_context('mara') as cursor:  # type: psycopg2.extensions.cursor
         cursor.execute(query)
-        cursor.execute(f'SELECT row_to_json(t) FROM pg_temp.node_run_times({"%s"}) t', (node.path(),))
+        cursor.execute(
+            'SELECT row_to_json(t) FROM pg_temp.node_run_times(%s) t',
+            (node.path(),),
+        )
         rows = [row[0] for row in cursor.fetchall()]
 
         if rows and len(rows) > 1:

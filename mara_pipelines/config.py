@@ -106,12 +106,10 @@ def event_handlers() -> [events.EventHandler]:
     Example:
         mara_pipelines.config.event_handlers = lambda: [mara_pipelines.notification.slack.Slack('123/ABC/cdef')]
     """
-    # the default implementation ensures backward compatibility, don't use otherwise
-    if slack_token():
-        from .notification.slack import Slack
-        return [Slack(slack_token())]
-    else:
+    if not slack_token():
         return []
+    from .notification.slack import Slack
+    return [Slack(slack_token())]
 
 
 def password_masks() -> typing.List[str]:

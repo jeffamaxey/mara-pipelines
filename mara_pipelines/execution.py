@@ -130,11 +130,17 @@ def run_pipeline(pipeline: pipelines.Pipeline, nodes: {pipelines.Node} = None,
                 - where the pipeline specific maximum number of parallel tasks per pipeline is not reached
                 """
                 for node in node_queue:  # type: pipelines.Node
-                    if ((not node.upstreams or len(node.upstreams & processed_nodes) == len(node.upstreams))
-                        and (not isinstance(node.parent, pipelines.Pipeline)
-                             or (not node.parent.max_number_of_parallel_tasks)
-                             or (not node.parent in running_pipelines)
-                             or (running_pipelines[node.parent][1] < node.parent.max_number_of_parallel_tasks))):
+                    if (
+                        not node.upstreams
+                        or len(node.upstreams & processed_nodes)
+                        == len(node.upstreams)
+                    ) and (
+                        not isinstance(node.parent, pipelines.Pipeline)
+                        or not node.parent.max_number_of_parallel_tasks
+                        or node.parent not in running_pipelines
+                        or running_pipelines[node.parent][1]
+                        < node.parent.max_number_of_parallel_tasks
+                    ):
                         node_queue.remove(node)
                         processed_as_parent_failed = False
                         parent = node.parent
@@ -216,10 +222,13 @@ def run_pipeline(pipeline: pipelines.Pipeline, nodes: {pipelines.Node} = None,
                             pipeline_start_time = datetime.datetime.now(tz.utc)
                             running_pipelines[next_node] = [pipeline_start_time, 0]
                             event_queue.put(pipeline_events.NodeStarted(next_node.path(), pipeline_start_time, True))
-                            event_queue.put(pipeline_events.Output(
-                                node_path=next_node.path(), format=logger.Format.ITALICS,
-                                message='★ ' + node_cost.format_duration(
-                                    node_durations_and_run_times.get(tuple(next_node.path()), [0, 0])[0])))
+                            event_queue.put(
+                                pipeline_events.Output(
+                                    node_path=next_node.path(),
+                                    format=logger.Format.ITALICS,
+                                    message=f'★ {node_cost.format_duration(node_durations_and_run_times.get(tuple(next_node.path()), [0, 0])[0])}',
+                                )
+                            )
 
                         elif isinstance(next_node, pipelines.ParallelTask):
                             # create sub tasks and queue them
@@ -234,8 +243,11 @@ def run_pipeline(pipeline: pipelines.Pipeline, nodes: {pipelines.Node} = None,
                             except Exception as e:
                                 event_queue.put(pipeline_events.NodeStarted(
                                     node_path=next_node.path(), start_time=task_start_time, is_pipeline=True))
-                                logger.log(message=f'Could not launch parallel tasks', format=logger.Format.ITALICS,
-                                           is_error=True)
+                                logger.log(
+                                    message='Could not launch parallel tasks',
+                                    format=logger.Format.ITALICS,
+                                    is_error=True,
+                                )
                                 logger.log(message=traceback.format_exc(),
                                            format=pipeline_events.Output.Format.VERBATIM, is_error=True)
                                 event_queue.put(pipeline_events.NodeFinished(
@@ -253,10 +265,13 @@ def run_pipeline(pipeline: pipelines.Pipeline, nodes: {pipelines.Node} = None,
                                 running_pipelines[next_node.parent][1] += 1
                             event_queue.put(
                                 pipeline_events.NodeStarted(next_node.path(), datetime.datetime.now(tz.utc), False))
-                            event_queue.put(pipeline_events.Output(
-                                node_path=next_node.path(), format=logger.Format.ITALICS,
-                                message='★ ' + node_cost.format_duration(
-                                    node_durations_and_run_times.get(tuple(next_node.path()), [0, 0])[0])))
+                            event_queue.put(
+                                pipeline_events.Output(
+                                    node_path=next_node.path(),
+                                    format=logger.Format.ITALICS,
+                                    message=f'★ {node_cost.format_duration(node_durations_and_run_times.get(tuple(next_node.path()), [0, 0])[0])}',
+                                )
+                            )
 
                             status_queue = multiprocessing_context.Queue()
                             process = TaskProcess(next_node, event_queue, status_queue)
@@ -265,16 +280,17 @@ def run_pipeline(pipeline: pipelines.Pipeline, nodes: {pipelines.Node} = None,
 
                 # check whether some of the running processes finished
                 for task_process in list(running_task_processes.values()):  # type: TaskProcess
-                    if task_process.is_alive():
-                        pass
-                    else:
+                    if not task_process.is_alive():
                         del running_task_processes[task_process.task]
                         if task_process.task.parent in running_pipelines:
                             running_pipelines[task_process.task.parent][1] -= 1
 
                         processed_nodes.add(task_process.task)
 
-                        succeeded = not (task_process.status_queue.get() == False or task_process.exitcode != 0)
+                        succeeded = (
+                            task_process.status_queue.get() != False
+                            and task_process.exitcode == 0
+                        )
                         if not succeeded and not task_process.task.parent.ignore_errors:
                             for parent in task_process.task.parents()[:-1]:
                                 failed_pipelines.add(parent)
@@ -418,18 +434,17 @@ class TaskProcess(multiprocessing.Process):
         attempt = 0
         try:
             while True:
-                if not self.task.run():
-                    max_retries = self.task.max_retries or config.default_task_max_retries()
-                    if attempt < max_retries:
-                        attempt += 1
-                        delay = pow(2, attempt + 2)
-                        logger.log(message=f'Retry {attempt}/{max_retries} in {delay} seconds',
-                                   is_error=True, format=logger.Format.ITALICS)
-                        time.sleep(delay)
-                    else:
-                        succeeded = False
-                        break
+                if self.task.run():
+                    break
+                max_retries = self.task.max_retries or config.default_task_max_retries()
+                if attempt < max_retries:
+                    attempt += 1
+                    delay = pow(2, attempt + 2)
+                    logger.log(message=f'Retry {attempt}/{max_retries} in {delay} seconds',
+                               is_error=True, format=logger.Format.ITALICS)
+                    time.sleep(delay)
                 else:
+                    succeeded = False
                     break
         except Exception as e:
             logger.log(message=traceback.format_exc(), format=logger.Format.VERBATIM, is_error=True)

@@ -26,8 +26,7 @@ def log(message: str, format: pipeline_events.Output.Format = Format.STANDARD,
         is_error: Whether the message is considered an error message
     """
     message = message.rstrip()
-    masks = mara_pipelines.config.password_masks()
-    if masks:
+    if masks := mara_pipelines.config.password_masks():
         for mask in masks:
             message = message.replace(mask, '***')
     if message:
@@ -81,9 +80,20 @@ def format_time_difference(t1: datetime, t2: datetime):
     import dateutil.relativedelta
 
     difference = dateutil.relativedelta.relativedelta(t2, t1)
-    return ', '.join([str(getattr(difference, attr)) + ' ' + attr for attr in
-                      ['years', 'months', 'days', 'hours', 'minutes', 'seconds']
-                      if getattr(difference, attr) or attr == 'seconds'])
+    return ', '.join(
+        [
+            f'{str(getattr(difference, attr))} {attr}'
+            for attr in [
+                'years',
+                'months',
+                'days',
+                'hours',
+                'minutes',
+                'seconds',
+            ]
+            if getattr(difference, attr) or attr == 'seconds'
+        ]
+    )
 
 
 if __name__ == "__main__":

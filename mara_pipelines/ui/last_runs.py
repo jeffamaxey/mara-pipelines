@@ -50,15 +50,18 @@ def last_runs_selector(path: str):
     node, __ = pipelines.find_node(path.split('/'))
 
     with mara_db.postgresql.postgres_cursor_context('mara') as cursor:  # type: psycopg2.extensions.cursor
-        cursor.execute(f'''
+        cursor.execute(
+            "
 SELECT
   run_id,
   to_char(start_time, 'Mon DD HH24:MI') AS start_time,
   extract(EPOCH FROM (end_time - start_time)) AS duration,
   succeeded
 FROM data_integration_node_run
-WHERE node_path = {"%s"}
-ORDER BY run_id DESC;''', (node.path(),))
+WHERE node_path = %s
+ORDER BY run_id DESC;",
+            (node.path(),),
+        )
 
         return str(
             _.select(id='last-runs-selector', class_='custom-select', style="border:none",
@@ -100,14 +103,20 @@ def run_output(path: str, run_id: int, limit: bool):
 
     line_limit = 1000
     with mara_db.postgresql.postgres_cursor_context('mara') as cursor:  # type: psycopg2.extensions.cursor
-        cursor.execute(f'''
+        cursor.execute(
+            (
+                '
 SELECT node_path, message, format, is_error
 FROM data_integration_node_run
   JOIN data_integration_node_output USING (node_run_id)
-WHERE node_path [1:{"%s"}] = %s
+WHERE node_path [1:%s] = %s
       AND run_id = %s
 ORDER BY timestamp
-''' + ('LIMIT ' + str(line_limit + 1) if limit else ''), (len(node.path()), node.path(), run_id))
+'
+                + (f'LIMIT {str(line_limit + 1)}' if limit else '')
+            ),
+            (len(node.path()), node.path(), run_id),
+        )
 
         rows = cursor.fetchall()
         return str(_.script[f"""
@@ -131,7 +140,8 @@ def system_stats(path: str, run_id: int):
         return ''
 
     with mara_db.postgresql.postgres_cursor_context('mara') as cursor:  # type: psycopg2.extensions.cursor
-        cursor.execute(f'''
+        cursor.execute(
+            "
 SELECT
   -- needs to be spelled out to be able to rely on the order in the postprocessing of the row
   -- run_id is not needed in the frontend...
@@ -148,7 +158,9 @@ FROM data_integration_node_run nr
 JOIN data_integration_system_statistics stats ON stats.timestamp BETWEEN nr.start_time AND nr.end_time
      -- -1 is fallback for old cases where we didn't have a node ID -> can be removed after 2021-01-01 or so
      AND (stats.run_id = nr.run_id OR stats.run_id = -1)
-WHERE nr.run_id = {"%s"} AND nr.node_path = {"%s"};''', (run_id, node.path()))
+WHERE nr.run_id = %s AND nr.node_path = %s;",
+            (run_id, node.path()),
+        )
 
         data = [[row[0].isoformat()] + list(row[1:]) for row in cursor.fetchall()]
         if len(data) >= 15:
@@ -172,12 +184,19 @@ def timeline_chart(path: str, run_id: int):
         return ''
 
     with mara_db.postgresql.postgres_cursor_context('mara') as cursor:  # type: psycopg2.extensions.cursor
-        cursor.execute(f'''
+        cursor.execute(
+            '
 SELECT node_path, start_time, end_time, max(end_time) over () AS max_end_time, succeeded, is_pipeline
 FROM data_integration_node_run
-WHERE node_path [1 :{'%(level)s'}] = {'%(node_path)s'}
-      AND array_length(node_path, 1) > {'%(level)s'}
-      AND run_id = {'%(run_id)s'};''', {'level': len(node.path()), 'node_path': node.path(), 'run_id': run_id})
+WHERE node_path [1 :%(level)s] = %(node_path)s
+      AND array_length(node_path, 1) > %(level)s
+      AND run_id = %(run_id)s;',
+            {
+                'level': len(node.path()),
+                'node_path': node.path(),
+                'run_id': run_id,
+            },
+        )
 
         nodes = [{'label': ' / '.join(node_path[len(node.path()):]),
                   'status': {None: 'unfinished', True: 'succeeded', False: 'failed'}[succeeded],

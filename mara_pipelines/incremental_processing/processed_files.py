@@ -33,12 +33,15 @@ def track_processed_file(node_path: str, file_name: str, last_modified_timestamp
     Returns: True
     """
     with mara_db.postgresql.postgres_cursor_context('mara') as cursor:
-        cursor.execute(f'''
+        cursor.execute(
+            '
 INSERT INTO data_integration_processed_file (node_path, file_name, last_modified_timestamp) 
-VALUES ({'%s,%s,%s'})
+VALUES (%s,%s,%s)
 ON CONFLICT (node_path, file_name) 
 DO UPDATE SET last_modified_timestamp = EXCLUDED.last_modified_timestamp
-''', (node_path, file_name, last_modified_timestamp))
+',
+            (node_path, file_name, last_modified_timestamp),
+        )
     return True
 
 

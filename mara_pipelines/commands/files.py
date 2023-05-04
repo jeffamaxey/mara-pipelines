@@ -80,17 +80,16 @@ class ReadFile(pipelines.Command):
             null_value_string=self.null_value_string, timezone=self.timezone)
         if not isinstance(mara_db.dbs.db(self.db_alias()), mara_db.dbs.BigQueryDB):
             return \
-                f'{read_file_command(self.storage_alias, file_name=self.file_name, compression=self.compression)} \\\n' \
-                + (f'  | {shlex.quote(sys.executable)} "{self.mapper_file_path()}" \\\n'
+                    f'{read_file_command(self.storage_alias, file_name=self.file_name, compression=self.compression)} \\\n' \
+                    + (f'  | {shlex.quote(sys.executable)} "{self.mapper_file_path()}" \\\n'
                    if self.mapper_script_file_name else '') \
-                + ('  | sort -u \\\n' if self.make_unique else '') \
-                + '  | ' + copy_from_stdin_command
-        else:
-            # Bigquery loading does not support streaming data through pipes
-            storage = mara_storage.storages.storage(self.storage_alias)
-            if not isinstance(storage, mara_storage.storages.LocalStorage):
-                raise ValueError('The ReadFile to a BigQuery database can only be used from a storage alias of type LocalStorage')
-            return copy_from_stdin_command + f' {shlex.quote(str( (storage.base_path / self.file_name).absolute() ))}'
+                    + ('  | sort -u \\\n' if self.make_unique else '') \
+                    + '  | ' + copy_from_stdin_command
+        # Bigquery loading does not support streaming data through pipes
+        storage = mara_storage.storages.storage(self.storage_alias)
+        if not isinstance(storage, mara_storage.storages.LocalStorage):
+            raise ValueError('The ReadFile to a BigQuery database can only be used from a storage alias of type LocalStorage')
+        return f'{copy_from_stdin_command} {shlex.quote(str((storage.base_path / self.file_name).absolute()))}'
 
     def mapper_file_path(self):
         return self.parent.parent.base_path() / self.mapper_script_file_name
